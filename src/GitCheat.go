@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	USAGE string = "用法：GitCheat 2016-01-24 2016-03-10"
+	USAGE string = "用法：GitCheat 2015-10-24 2015-12-10"
 	ONEDAY = 60*60*24*time.Second
 	MAXDELTADAY = 4
 	MAXCOMMITNUM = 20
@@ -49,7 +49,7 @@ func doCheat(lst *list.List){
 			var content = myRand.Int()
 			file.WriteString(fmt.Sprintf("%d", content))
 			file.Close()
- 
+
 			execGitCmd(GITADDSTRING)
 			var (
 				y int
