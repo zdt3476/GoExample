@@ -11,14 +11,15 @@ import (
 )
 
 const (
-	USAGE string = "用法：GitCheat 2015-10-24 2015-12-10"
+	USAGE string = "用法：GitCheat 2015-10-24 2015-11-10"
 	ONEDAY = 60*60*24*time.Second
 	MAXDELTADAY = 4
-	MAXCOMMITNUM = 20
+	MAXCOMMITNUM = 7
 	DATEFMT = "2006-01-02"
 	GITFILENAME = "cheat"
 	GITADDSTRING = "git add " + GITFILENAME
-	GITCOMMITFMT = "git commit --date %d-%d-%d -m \"modify content to %d\""
+	GITCOMMITFMT = "git commit --date %04d-%02d-%02d -m"
+	GITCOMMITANNOTATIONFMT = "\"Modify content to %d.\""
 )
 
 var myRand = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -30,6 +31,8 @@ func main() {
 	}
 
 	startDate, endDate := parseDate()
+	//startDate, _ := time.Parse(DATEFMT, "2016-1-2")
+	//endDate, _ := time.Parse(DATEFMT, "2016-12-1")
 	lst := genDateList(startDate, endDate)
 
 	doCheat(lst)
@@ -59,19 +62,24 @@ func doCheat(lst *list.List){
 			if td, ok := day.Value.(time.Time); ok{
 				y, m, d = td.Date()
 			}
-			commit := fmt.Sprintf(GITCOMMITFMT, y, m, d, content)
-			execGitCmd(commit)
+			commit := fmt.Sprintf(GITCOMMITFMT, y, m, d)
+			annotation := fmt.Sprintf(GITCOMMITANNOTATIONFMT, content)
+			execGitCmd(commit, annotation)
 
-			fmt.Println(commit)
+			fmt.Println(commit, annotation)
 		}
 	}
 }
 
 // execGitCmd 执行Git命令
-func execGitCmd(cmdName string){
+func execGitCmd(cmdName string, params ...interface{}){
 	tmp := strings.Split(cmdName, " ")
+	if len(params) > 0{
+		t, _ := params[0].(string)
+		tmp = append(tmp, t)
+	}
 	cmd := exec.Command(tmp[0], tmp[1:]...)
-	err := cmd.Start()
+	err := cmd.Run()
 	if err != nil{
 		fmt.Println(err)
 		os.Exit(-1)
@@ -115,6 +123,9 @@ func genDateList(start, end time.Time) (lstDate *list.List) {
 			deltaTime = ONEDAY
 		}
 		tmp  = tmp.Add(deltaTime)
+		if end.Before(tmp){
+			break;
+		}
 		lstDate.PushBack(tmp)
 	}
 
