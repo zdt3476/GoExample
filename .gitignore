@@ -19,6 +19,13 @@ _cgo_export.*
 
 _testmain.go
 
+*_test.go
+
 *.exe
 *.test
 *.prof
+
+# intellij idea
+GoExample.iml
+*idea
+
