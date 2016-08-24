@@ -16,7 +16,7 @@ const (
 	MAXDELTADAY = 4
 	MAXCOMMITNUM = 20
 	GITFILENAME = "cheat"
-	GITADDSTRING = "git add ./" + GITFILENAME
+	GITADDSTRING = "git add " + GITFILENAME
 	GITCOMMITFMT = "git commit --date=%d-%d-%d -m \"modify content to %d\""
 )
 
