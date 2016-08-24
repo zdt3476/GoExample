@@ -7,6 +7,7 @@ import (
 	"time"
 	"math/rand"
 	"os/exec"
+	"strings"
 )
 
 const (
@@ -49,7 +50,7 @@ func doCheat(lst *list.List){
 			file.Close()
 
 			execGitCmd(GITADDSTRING)
-			commit := fmt.Sprintf(GITCOMMITFMT, day, content)
+			commit := fmt.Sprintf(GITCOMMITFMT, day.Value, content)
 			execGitCmd(commit)
 
 			fmt.Println(commit)
@@ -59,7 +60,8 @@ func doCheat(lst *list.List){
 
 // execGitCmd 执行Git命令
 func execGitCmd(cmdName string){
-	cmd := exec.Command(cmdName, "")
+	tmp := strings.Split(cmdName, " ")
+	cmd := exec.Command(tmp[0], tmp[1:]...)
 	err := cmd.Start()
 	if err != nil{
 		fmt.Println(err)
