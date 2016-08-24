@@ -17,7 +17,7 @@ const (
 	MAXCOMMITNUM = 20
 	GITFILENAME = "cheat"
 	GITADDSTRING = "git add " + GITFILENAME
-	GITCOMMITFMT = "git commit --date=%d-%d-%d -m \"modify content to %d\""
+	GITCOMMITFMT = "git commit --date %d-%d-%d -m \"modify content to %d\""
 )
 
 var myRand = rand.New(rand.NewSource(time.Now().UnixNano()))
