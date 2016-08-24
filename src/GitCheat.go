@@ -15,6 +15,7 @@ const (
 	ONEDAY = 60*60*24*time.Second
 	MAXDELTADAY = 4
 	MAXCOMMITNUM = 20
+	DATEFMT = "2006-01-02"
 	GITFILENAME = "cheat"
 	GITADDSTRING = "git add " + GITFILENAME
 	GITCOMMITFMT = "git commit --date %d-%d-%d -m \"modify content to %d\""
@@ -81,12 +82,12 @@ func execGitCmd(cmdName string){
 func parseDate() (startDate, endDate time.Time) {
 	var err interface{}
 
-	startDate, err = time.Parse("2006-01-02", os.Args[1])
+	startDate, err = time.Parse(DATEFMT, os.Args[1])
 	if err != nil {
 		fmt.Println(err, USAGE)
 		os.Exit(-1)
 	}
-	endDate, err = time.Parse("2006-01-02", os.Args[2])
+	endDate, err = time.Parse(DATEFMT, os.Args[2])
 	if err != nil {
 		fmt.Println(err, USAGE)
 		os.Exit(-1)
