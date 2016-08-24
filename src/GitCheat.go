@@ -49,7 +49,7 @@ func doCheat(lst *list.List){
 			var content = myRand.Int()
 			file.WriteString(fmt.Sprintf("%d", content))
 			file.Close()
-
+ 
 			execGitCmd(GITADDSTRING)
 			var (
 				y int
