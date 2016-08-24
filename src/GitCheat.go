@@ -11,14 +11,14 @@ import (
 )
 
 const (
-	USAGE string = "用法：GitCheat 2015-10-24 2015-12-10"
+	USAGE string = "用法：GitCheat 2015-10-24 2015-11-10"
 	ONEDAY = 60*60*24*time.Second
 	MAXDELTADAY = 4
 	MAXCOMMITNUM = 20
 	DATEFMT = "2006-01-02"
 	GITFILENAME = "cheat"
 	GITADDSTRING = "git add " + GITFILENAME
-	GITCOMMITFMT = "git commit --date %d-%d-%d -m \"modify content to %d\""
+	GITCOMMITFMT = "git commit --date %04d-%02d-%02d -m \"Modify_content_to_%d.\""
 )
 
 var myRand = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -71,7 +71,7 @@ func doCheat(lst *list.List){
 func execGitCmd(cmdName string){
 	tmp := strings.Split(cmdName, " ")
 	cmd := exec.Command(tmp[0], tmp[1:]...)
-	err := cmd.Start()
+	err := cmd.Run()
 	if err != nil{
 		fmt.Println(err)
 		os.Exit(-1)
