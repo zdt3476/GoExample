@@ -34,11 +34,17 @@ const (
 	ACCEPT_RANGES  = "Accept-Ranges"
 	CONTENT_LENGTH = "Content-Length"
 	RANGE          = "Range"
+	LOCATION = "Location"
 
 	KB float64 = 1024
 	MB float64 = 1024 * KB
 	GB float64 = 1024 * MB
+	REDIRECTCODE1 = 301
+	REDIRECTCODE2 = 302
+	MAXCONN = 1000
 )
+
+//type table []string
 
 var (
 	logger      *log.Logger
@@ -46,7 +52,7 @@ var (
 )
 
 func init() {
-	logger = log.New(os.Stdout, "", log.Ltime|log.Lmicroseconds|log.Lshortfile)
+	logger = log.New(os.Stdout, "", log.Ltime|log.Lmicroseconds/*|log.Lshortfile*/)
 	stopRunChan = make(chan bool)
 }
 
@@ -108,7 +114,7 @@ func downloadSection(sec Section, urlStr string, wg *sync.WaitGroup) {
 		logger.Fatal("Do:", err)
 	}
 
-	secFile, err := os.OpenFile(sec.FilePath, os.O_CREATE|os.O_WRONLY, 0600)
+	secFile, err := os.OpenFile(sec.FilePath, os.O_CREATE|os.O_WRONLY, 0777)
 	if err != nil {
 		logger.Fatalf("创建分块文件%s失败：%s", filename, err)
 	}
@@ -129,7 +135,7 @@ func downloadSection(sec Section, urlStr string, wg *sync.WaitGroup) {
 
 // run 处理文件是否下载完成
 func (dl *Downloader) run(finishChan chan bool, filename string) {
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0777)
 	if err != nil {
 		logger.Fatalf("创建下载文件%s失败:%s", filename, err)
 	}
@@ -147,7 +153,9 @@ func (dl *Downloader) run(finishChan chan bool, filename string) {
 			}
 			sort.Strings(sliceSecName) // 排序分块文件
 
+			fmt.Println()
 			for _, secName := range sliceSecName {
+				fmt.Println("正在拼接：", secName)
 				err := fileAppend(secName, file) // 这里只是为了能够使用defer close
 				if err != nil {
 					logger.Fatalf("拼接分块文件%s失败：%s", secName, err)
@@ -155,7 +163,8 @@ func (dl *Downloader) run(finishChan chan bool, filename string) {
 			}
 
 			removeAllSecFile(sliceSecName)
-			logger.Println("\n下载完成，文件所在路径为：", filename)
+			fmt.Println()
+			logger.Println("下载完成，文件所在路径为：", filename)
 			stopRunChan <- true
 			return
 
@@ -178,12 +187,28 @@ func fileAppend(secName string, file *os.File) interface{} {
 }
 
 func New(urlStr string, maxConn int, folder string) (downloader *Downloader) {
-	downloader = &Downloader{urlStr: urlStr}
+	if maxConn > MAXCONN{
+		maxConn = MAXCONN	// 限制最大连接数
+	}
+	downloader = &Downloader{}
 
 	req, err := http.NewRequest("HEAD", urlStr, nil)
 	if err != nil {
 		logger.Fatal("创建Request失败:", err)
 	}
+
+	var resp *http.Response
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Fatal("创建Response失败：", err)
+	}
+
+	// 对重定向进行处理
+	if resp.StatusCode == REDIRECTCODE1 || resp.StatusCode == REDIRECTCODE2{
+		urlStr = resp.Header.Get(LOCATION)
+	}
+	fmt.Println("Status:", resp.Status)
+	downloader.urlStr = urlStr
 
 	var realUrl *url.URL
 	realUrl, err = url.Parse(urlStr)
@@ -192,12 +217,6 @@ func New(urlStr string, maxConn int, folder string) (downloader *Downloader) {
 	}
 
 	downloader.storePath = genStorePath(folder, realUrl)
-
-	var resp *http.Response
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		logger.Fatal("创建Response失败：", err)
-	}
 
 	// 判断服务器是否多线程，以及请求的资源大小
 	accept := resp.Header.Get(ACCEPT_RANGES)
@@ -229,7 +248,7 @@ func genSections(cLen int64, maxConn int, fileName string) (section []Section) {
 	cnt := cLen / c64
 	for i := int64(0); i < c64; i++ {
 		sec := Section{}
-		sec.FilePath = fmt.Sprintf("%s.Sec%d", fileName, i)
+		sec.FilePath = fmt.Sprintf("%s.Flush%03d", fileName, i)
 		sec.StartIdx = i * cnt
 		if i < c64-1 {
 			sec.EndIdx = (i+1)*cnt - 1
@@ -266,3 +285,15 @@ func removeAllSecFile(sliceSecFiles []string) {
 		os.Remove(filename)
 	}
 }
+
+//func (t *table) Len() int{
+//	return len(t)
+//}
+//
+//func (t *table) Less(i, j int) bool{
+//
+//}
+//
+//func (t * table) Swap(i, j int){
+//	t[i], t[j] = t[j], t[i]
+//}
