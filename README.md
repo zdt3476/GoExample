@@ -17,6 +17,7 @@
 
 > Usage:
 ```Go
+runtime.GOMAXPROCS(runtime.NumCPU())
 dl := flush.New("https://zdt3476.github.io/background/resume-no20.pdf", runtime.NumCPU(), "D:\\")
 dl.Start()
 ```

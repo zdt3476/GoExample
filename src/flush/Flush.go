@@ -83,10 +83,15 @@ func (dl *Downloader) Start() {
 
 	var wg = new(sync.WaitGroup)
 
-	for iter := dl.sections.Front(); iter != nil; iter = iter.Next() {
+	if dl.sections == nil{
 		wg.Add(1)
-		sec, _ := iter.Value.(Section)
-		go downloadSection(sec, secChan, dl.urlStr, wg)
+		go downloadSection(Section{FilePath:dl.storePath}, secChan, dl.urlStr, wg)
+	}else{
+		for iter := dl.sections.Front(); iter != nil; iter = iter.Next() {
+			wg.Add(1)
+			sec, _ := iter.Value.(Section)
+			go downloadSection(sec, secChan, dl.urlStr, wg)
+		}
 	}
 
 	wg.Wait()
@@ -103,8 +108,10 @@ func downloadSection(sec Section, secChan chan string, urlStr string, wg *sync.W
 	}
 	filename := filepath.Base(sec.FilePath)
 
-	var value = fmt.Sprintf("bytes=%d-%d", sec.StartIdx, sec.EndIdx)
-	req.Header.Add(RANGE, value)
+	if sec.EndIdx != int64(0) {
+		var value = fmt.Sprintf("bytes=%d-%d", sec.StartIdx, sec.EndIdx)
+		req.Header.Add(RANGE, value)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -167,6 +174,7 @@ func run(secChan chan string, finishChan chan bool, filename string) {
 				}
 			}
 
+			removeAllSecFile(sliceSecName)
 			logger.Println("\n下载完成，文件所在路径为：", filename)
 			stopRunChan <- true
 			return
@@ -192,7 +200,7 @@ func fileAppend(secName string, file *os.File) interface{} {
 func New(urlStr string, maxConn int, folder string) (downloader *Downloader) {
 	downloader = &Downloader{urlStr: urlStr}
 
-	req, err := http.NewRequest("", urlStr, nil)
+	req, err := http.NewRequest("HEAD", urlStr, nil)
 	if err != nil {
 		logger.Fatal("创建Request失败:", err)
 	}
@@ -214,6 +222,7 @@ func New(urlStr string, maxConn int, folder string) (downloader *Downloader) {
 	// 判断服务器是否多线程，以及请求的资源大小
 	accept := resp.Header.Get(ACCEPT_RANGES)
 	if strings.ToLower(accept) == "none" { // 不支持多线程下载
+		log.Println("服务器不支持多线程下载，自动切换成单线程下载")
 		maxConn = 1
 	}
 	downloader.maxConn = maxConn
@@ -221,7 +230,9 @@ func New(urlStr string, maxConn int, folder string) (downloader *Downloader) {
 	contentLength := resp.Header.Get(CONTENT_LENGTH)
 	downloader.contentLength, err = strconv.ParseInt(contentLength, 10, 64)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("无法获取需要下载的文件大小，自动切换成单线程下载")
+		maxConn = 1
+		downloader.contentLength = -1
 	}
 	downloader.sections = genSections(downloader.contentLength, maxConn, downloader.storePath)
 
@@ -230,6 +241,10 @@ func New(urlStr string, maxConn int, folder string) (downloader *Downloader) {
 
 // genSections 将资源按线程数划分区块
 func genSections(cLen int64, maxConn int, fileName string) (lst *list.List) {
+	if cLen == -1{
+		return
+	}
+
 	lst = list.New()
 
 	c64 := int64(maxConn)
@@ -262,4 +277,14 @@ func genStorePath(folder string, realUrl *url.URL) (storePath string) {
 		}
 	}
 	return
+}
+
+// removeAllSecFile 将临时的分块文件删除
+func removeAllSecFile(sliceSecFiles []string){
+	for _, filename := range sliceSecFiles{
+		if filename == ""{
+			continue
+		}
+		os.Remove(filename)
+	}
 }
