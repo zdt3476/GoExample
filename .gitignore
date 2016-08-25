@@ -28,4 +28,5 @@ _testmain.go
 # intellij idea
 GoExample.iml
 *idea
+Example.go
 
