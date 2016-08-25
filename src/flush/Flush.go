@@ -61,7 +61,6 @@ func (dl *Downloader) Start() {
 	var (
 		finishChan chan bool = make(chan bool)
 	)
-	defer close(finishChan)
 
 	go dl.run(finishChan, dl.storePath)
 
@@ -93,7 +92,6 @@ func (dl *Downloader) Start() {
 	wg.Wait()
 	finishChan <- true
 	<-stopRunChan // 阻塞主线程，等待拼接文件完成
-	close(stopRunChan)
 }
 
 // downloadSection 下载单个分块文件
