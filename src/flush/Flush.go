@@ -42,13 +42,13 @@ const (
 )
 
 var (
-	logger *log.Logger
-	stopChan chan bool
+	logger   *log.Logger
+	stopRunChan chan bool
 )
 
-func init(){
-	logger = log.New(os.Stdout, "", log.Ltime | log.Lmicroseconds)
-	stopChan = make(chan bool)
+func init() {
+	logger = log.New(os.Stdout, "", log.Ltime|log.Lmicroseconds)
+	stopRunChan = make(chan bool)
 }
 
 // Start 开始执行文件下载
@@ -91,8 +91,8 @@ func (dl *Downloader) Start() {
 
 	wg.Wait()
 	finishChan <- true
-	<- stopChan	 // 阻塞主线程，等待拼接文件完成
-	close(stopChan)
+	<-stopRunChan // 阻塞主线程，等待拼接文件完成
+	close(stopRunChan)
 }
 
 // downloadSection 下载单个分块文件
@@ -147,7 +147,6 @@ func run(secChan chan string, finishChan chan bool, filename string) {
 		select {
 		case sectionName := <-secChan:
 			lstSec.PushBack(sectionName)
-			logger.Printf("分块文件%s下载完成\n", filename)
 
 		case <-finishChan:
 			var sliceSecName = make([]string, lstSec.Len())
@@ -157,8 +156,8 @@ func run(secChan chan string, finishChan chan bool, filename string) {
 			}
 			sort.Strings(sliceSecName) // 排序分块文件
 
-			for _, secName := range sliceSecName{
-				if secName == ""{
+			for _, secName := range sliceSecName {
+				if secName == "" {
 					continue
 				}
 
@@ -168,11 +167,11 @@ func run(secChan chan string, finishChan chan bool, filename string) {
 				}
 			}
 
-			logger.Println("下载完成，文件所在路径为：", filename)
-			stopChan <- true
+			logger.Println("\n下载完成，文件所在路径为：", filename)
+			stopRunChan <- true
 			return
 
-		case <- tick.C:
+		case <-tick.C:
 			fmt.Print(".")
 		}
 	}
