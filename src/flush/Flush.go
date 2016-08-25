@@ -1,7 +1,6 @@
 package flush
 
 import (
-	"container/list"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,11 +23,11 @@ type Section struct {
 }
 
 type Downloader struct {
-	urlStr        string     // 请求的链接字符串
-	sections      *list.List // 分块结构体列表
-	maxConn       int        // 发起下载的连接数量
-	contentLength int64      // 资源大小
-	storePath     string     // 文件下载后存储的路径，包括文件名
+	urlStr        string    // 请求的链接字符串
+	sections      []Section // 分块结构体列表
+	maxConn       int       // 发起下载的连接数量
+	contentLength int64     // 资源大小
+	storePath     string    // 文件下载后存储的路径，包括文件名
 }
 
 const (
@@ -42,25 +41,23 @@ const (
 )
 
 var (
-	logger   *log.Logger
+	logger      *log.Logger
 	stopRunChan chan bool
 )
 
 func init() {
-	logger = log.New(os.Stdout, "", log.Ltime|log.Lmicroseconds)
+	logger = log.New(os.Stdout, "", log.Ltime|log.Lmicroseconds|log.Lshortfile)
 	stopRunChan = make(chan bool)
 }
 
 // Start 开始执行文件下载
 func (dl *Downloader) Start() {
 	var (
-		secChan    chan string = make(chan string)
-		finishChan chan bool   = make(chan bool)
+		finishChan chan bool = make(chan bool)
 	)
-	defer close(secChan)
 	defer close(finishChan)
 
-	go run(secChan, finishChan, dl.storePath)
+	go dl.run(finishChan, dl.storePath)
 
 	var (
 		desc      string
@@ -82,16 +79,9 @@ func (dl *Downloader) Start() {
 	logger.Println(desc)
 
 	var wg = new(sync.WaitGroup)
-
-	if dl.sections == nil{
+	for _, sec := range dl.sections {
 		wg.Add(1)
-		go downloadSection(Section{FilePath:dl.storePath}, secChan, dl.urlStr, wg)
-	}else{
-		for iter := dl.sections.Front(); iter != nil; iter = iter.Next() {
-			wg.Add(1)
-			sec, _ := iter.Value.(Section)
-			go downloadSection(sec, secChan, dl.urlStr, wg)
-		}
+		go downloadSection(sec, dl.urlStr, wg)
 	}
 
 	wg.Wait()
@@ -101,7 +91,7 @@ func (dl *Downloader) Start() {
 }
 
 // downloadSection 下载单个分块文件
-func downloadSection(sec Section, secChan chan string, urlStr string, wg *sync.WaitGroup) {
+func downloadSection(sec Section, urlStr string, wg *sync.WaitGroup) {
 	req, err := http.NewRequest("", urlStr, nil)
 	if err != nil {
 		logger.Fatal("Req:", err)
@@ -134,40 +124,30 @@ func downloadSection(sec Section, secChan chan string, urlStr string, wg *sync.W
 		logger.Fatalf("写入分块文件%s失败：%s", filename, err)
 	}
 
-	secChan <- sec.FilePath
 	wg.Done()
 }
 
 // run 处理文件是否下载完成
-func run(secChan chan string, finishChan chan bool, filename string) {
+func (dl *Downloader) run(finishChan chan bool, filename string) {
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		logger.Fatalf("创建下载文件%s失败:%s", filename, err)
 	}
 	defer file.Close()
-	lstSec := list.New()
 
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 
 	for {
 		select {
-		case sectionName := <-secChan:
-			lstSec.PushBack(sectionName)
-
 		case <-finishChan:
-			var sliceSecName = make([]string, lstSec.Len())
-			for iter := lstSec.Front(); iter != nil; iter = iter.Next() {
-				secName, _ := iter.Value.(string)
-				sliceSecName = append(sliceSecName, secName)
+			var sliceSecName = make([]string, dl.maxConn, dl.maxConn)
+			for i, sec := range dl.sections {
+				sliceSecName[i] = sec.FilePath
 			}
 			sort.Strings(sliceSecName) // 排序分块文件
 
 			for _, secName := range sliceSecName {
-				if secName == "" {
-					continue
-				}
-
 				err := fileAppend(secName, file) // 这里只是为了能够使用defer close
 				if err != nil {
 					logger.Fatalf("拼接分块文件%s失败：%s", secName, err)
@@ -234,18 +214,16 @@ func New(urlStr string, maxConn int, folder string) (downloader *Downloader) {
 		maxConn = 1
 		downloader.contentLength = -1
 	}
-	downloader.sections = genSections(downloader.contentLength, maxConn, downloader.storePath)
+	tmp := genSections(downloader.contentLength, maxConn, downloader.storePath)
+	downloader.sections = make([]Section, maxConn, maxConn)
+	copy(downloader.sections, tmp)
 
 	return
 }
 
 // genSections 将资源按线程数划分区块
-func genSections(cLen int64, maxConn int, fileName string) (lst *list.List) {
-	if cLen == -1{
-		return
-	}
-
-	lst = list.New()
+func genSections(cLen int64, maxConn int, fileName string) (section []Section) {
+	section = make([]Section, maxConn, maxConn)
 
 	c64 := int64(maxConn)
 	cnt := cLen / c64
@@ -259,7 +237,7 @@ func genSections(cLen int64, maxConn int, fileName string) (lst *list.List) {
 			sec.EndIdx = cLen
 		}
 
-		lst.PushBack(sec)
+		section[i] = sec
 	}
 
 	return
@@ -280,9 +258,9 @@ func genStorePath(folder string, realUrl *url.URL) (storePath string) {
 }
 
 // removeAllSecFile 将临时的分块文件删除
-func removeAllSecFile(sliceSecFiles []string){
-	for _, filename := range sliceSecFiles{
-		if filename == ""{
+func removeAllSecFile(sliceSecFiles []string) {
+	for _, filename := range sliceSecFiles {
+		if filename == "" {
 			continue
 		}
 		os.Remove(filename)
